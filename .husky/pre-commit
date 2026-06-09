@@ -1,0 +1,2 @@
+export PATH="$HOME/.local/lib/pnpm-install/node_modules/.bin:$PATH"
+pnpm lint-staged
