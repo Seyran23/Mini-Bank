@@ -1,0 +1,52 @@
+services:
+  # ─── Databases ────────────────────────────────────────────────────────────
+  auth_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:-minibank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minibank}
+    ports:
+      - '5432:5432'
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-minibank} -d auth_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Cache / Sessions ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Message broker ───────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-minibank}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-minibank}
+    ports:
+      - '5672:5672' # AMQP
+      - '15672:15672' # Management UI → http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  auth_db_data:
+  redis_data:
+  rabbitmq_data:
