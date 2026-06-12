@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { RefreshToken, User } from '@prisma/client';
 
+import { RefreshToken, User } from '@/generated/prisma';
 import { PrismaService } from '@/prisma/prisma.service';
 
 export type RefreshTokenWithUser = RefreshToken & { user: User };

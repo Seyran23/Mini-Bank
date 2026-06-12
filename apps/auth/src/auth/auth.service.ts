@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,6 +14,7 @@ import { RegisterDto } from '@/auth/dto/register.dto';
 import { AuthTokensResponse } from '@/auth/responses/auth-tokens.response';
 import { UserResponse } from '@/auth/responses/user.response';
 import { AUTH_CONFIG, type AuthConfig } from '@/config/auth.config';
+import { User } from '@/generated/prisma';
 
 @Injectable()
 export class AuthService {
@@ -128,6 +128,11 @@ export class AuthService {
       expiresAt: parseExpiryToDate(this.config.AUTH_JWT_REFRESH_EXPIRES_IN),
     });
 
-    return { accessToken, refreshToken, deviceId, user: UserResponse.from(user) };
+    return {
+      accessToken,
+      refreshToken,
+      deviceId,
+      user: UserResponse.from(user),
+    };
   }
 }

@@ -20,6 +20,7 @@ coverage
 
 # Prisma generated
 prisma/migrations/dev.db
+generated/
 
 # OS
 .DS_Store

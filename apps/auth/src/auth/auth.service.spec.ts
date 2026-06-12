@@ -1,6 +1,5 @@
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -9,6 +8,7 @@ import { ConflictException, UnauthorizedException } from '@minibank/errors';
 import { AuthRepository, RefreshTokenWithUser } from '@/auth/auth.repository';
 import { AuthService } from '@/auth/auth.service';
 import { AUTH_CONFIG } from '@/config/auth.config';
+import { User } from '@/generated/prisma';
 
 // ts-jest hoists jest.mock() calls, so these run before any module code
 jest.mock('argon2');
