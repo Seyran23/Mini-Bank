@@ -1,0 +1,57 @@
+generator client {
+    provider = "prisma-client-js"
+    output   = "../src/generated/prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("ACCOUNT_DATABASE_URL")
+}
+
+enum Currency {
+    USD
+    EUR
+    GBP
+}
+
+enum AccountStatus {
+    ACTIVE
+    CLOSED
+}
+
+enum LedgerEntryType {
+    DEPOSIT
+    WITHDRAWAL
+    TRANSFER_DEBIT
+    TRANSFER_CREDIT
+    REVERSAL
+}
+
+model Account {
+    id            String        @id @default(uuid())
+    userId        String        @map("user_id")
+    currency      Currency
+    status        AccountStatus @default(ACTIVE)
+    createdAt     DateTime      @default(now()) @map("created_at")
+    updatedAt     DateTime      @updatedAt @map("updated_at")
+    
+    ledgerEntries LedgerEntry[]
+
+    @@index([userId])
+    @@map("accounts")
+}
+
+model LedgerEntry {
+    id                   String          @id @default(uuid())
+    accountId            String          @map("account_id")
+    amount               Decimal         @db.Decimal(19, 4)
+    type                 LedgerEntryType
+    relatedTransactionId String?         @map("related_transaction_id")
+    description          String?
+    createdAt            DateTime        @default(now()) @map("created_at")
+    
+    account              Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+    @@index([accountId])
+    @@map("ledger_entries")
+}
