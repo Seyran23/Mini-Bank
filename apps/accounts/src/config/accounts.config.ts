@@ -11,6 +11,8 @@ export const accountsConfig = createConfig({
 
   ACCOUNTS_JWT_ACCESS_PUBLIC_KEY_BASE64: z.string().min(1),
 
+  ACCOUNTS_INTERNAL_API_KEY: z.string().min(15),
+
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 });
 

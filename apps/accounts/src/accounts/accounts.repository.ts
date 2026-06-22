@@ -67,6 +67,17 @@ export class AccountsRepository {
     });
   }
 
+  findLedgerEntryByRelatedTransaction(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+    relatedTransactionId: string,
+    type: LedgerEntryType,
+  ): Promise<LedgerEntry | null> {
+    return tx.ledgerEntry.findFirst({
+      where: { accountId, relatedTransactionId, type },
+    });
+  }
+
   withAccountLock<T>(
     accountId: string,
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
