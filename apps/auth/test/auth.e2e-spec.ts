@@ -18,7 +18,7 @@ describe('Auth (e2e)', () => {
   let prisma: PrismaService;
 
   beforeAll(async () => {
-    execSync('npx prisma db push --skip-generate', {
+    execSync('npx prisma migrate deploy', {
       cwd: SERVICE_ROOT,
       env: { ...process.env },
       stdio: 'pipe',

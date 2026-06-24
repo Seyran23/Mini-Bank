@@ -18,7 +18,7 @@ describe('AuthRepository (integration)', () => {
 
     process.env.AUTH_DATABASE_URL = container.getConnectionUri();
 
-    execSync('npx prisma db push --skip-generate', {
+    execSync('npx prisma migrate deploy', {
       cwd: SERVICE_ROOT,
       env: { ...process.env },
       stdio: 'pipe',
