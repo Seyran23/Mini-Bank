@@ -108,6 +108,7 @@ export class AuthService {
         algorithm: 'RS256',
         privateKey: this.accessPrivateKey,
         expiresIn: this.config.AUTH_JWT_ACCESS_EXPIRES_IN,
+        jwtid: uuidv4(),
       },
     );
 
@@ -117,6 +118,7 @@ export class AuthService {
         algorithm: 'RS256',
         privateKey: this.refreshPrivateKey,
         expiresIn: this.config.AUTH_JWT_REFRESH_EXPIRES_IN,
+        jwtid: uuidv4(),
       },
     );
 
