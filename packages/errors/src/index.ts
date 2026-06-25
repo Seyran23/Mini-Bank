@@ -46,3 +46,9 @@ export class ServiceUnavailableException extends AppException {
     super(`${service} is unavailable`, 'SERVICE_UNAVAILABLE', 503);
   }
 }
+
+export class InsufficientFundsException extends AppException {
+  constructor() {
+    super('Insufficient funds', 'INSUFFICIENT_FUNDS', 422);
+  }
+}
