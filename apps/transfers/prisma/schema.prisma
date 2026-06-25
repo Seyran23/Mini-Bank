@@ -1,0 +1,62 @@
+generator client {
+    provider = "prisma-client-js"
+    output   = "../src/generated/prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("TRANSFERS_DATABASE_URL")
+}
+
+enum Currency {
+    USD
+    EUR
+    GBP
+}
+
+enum SagaState {
+    INITIATED
+    DEBIT_PENDING
+    DEBIT_COMPLETE
+    CREDIT_PENDING
+    COMPLETED
+    COMPENSATING
+    COMPENSATED
+    FAILED
+}
+
+model Transfer {
+    id            String    @id @default(uuid())
+    userId        String    @map("user_id")
+    
+    fromAccountId String    @map("from_account_id")
+    toAccountId   String    @map("to_account_id")
+    
+    amount        Decimal   @db.Decimal(19, 4)
+    currency      Currency
+    
+    sagaState     SagaState @default(INITIATED) @map("saga_state")
+    failureReason String?   @map("failure_reason")
+    
+    correlationId String?   @map("correlation_id")
+    
+    createdAt     DateTime  @default(now()) @map("created_at")
+    updatedAt     DateTime  @updatedAt @map("updated_at")
+
+    @@index([fromAccountId])
+    @@index([toAccountId])
+    @@map("transfers")
+}
+
+model OutBoxEvent {
+    id          String    @id @default(uuid())
+    eventType   String    @map("event_type")
+    payload     Json
+    
+    publishedAt DateTime? @map("published_at")
+    
+    createdAt   DateTime  @default(now()) @map("created_at")
+
+    @@index([publishedAt])
+    @@map("outbox_events")
+}
