@@ -4,7 +4,7 @@ export type Logger = pino.Logger;
 export type { LoggerOptions } from 'pino';
 
 export function createLogger(service: string): Logger {
-  const isDev = process.env['NODE_ENV'] !== 'production';
+  const isDev = !['production', 'test'].includes(process.env['NODE_ENV'] ?? '');
 
   return pino({
     name: service,
