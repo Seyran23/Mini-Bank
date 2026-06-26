@@ -11,4 +11,5 @@ process.env['AUTH_JWT_REFRESH_PUBLIC_KEY_BASE64'] =
   Buffer.from('test-refresh-public').toString('base64');
 process.env['AUTH_JWT_ACCESS_EXPIRES_IN'] = '15m';
 process.env['AUTH_JWT_REFRESH_EXPIRES_IN'] = '7d';
+process.env['AUTH_INTERNAL_API_KEY'] = 'test-internal-api-key-unit-1234';
 process.env['LOG_LEVEL'] = 'error';
