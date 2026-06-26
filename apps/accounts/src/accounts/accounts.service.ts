@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ValidationException,
 } from '@minibank/errors';
+import { createLogger } from '@minibank/logger';
 
 import { Account, AccountStatus, Currency, LedgerEntryType, Prisma } from '@/generated/prisma';
 
@@ -15,6 +16,8 @@ import { LedgerEntryResponse } from './responses/ledger-entry.response';
 
 @Injectable()
 export class AccountsService {
+  private readonly logger = createLogger('accounts');
+
   constructor(private readonly repo: AccountsRepository) {}
 
   private async getOwnedAccount(userId: string, accountId: string): Promise<Account> {
@@ -46,6 +49,7 @@ export class AccountsService {
 
   async createAccount(userId: string, currency: Currency): Promise<AccountResponse> {
     const newAccount = await this.repo.createAccount(userId, currency);
+    this.logger.info({ userId, accountId: newAccount.id, currency }, 'Account created');
     return AccountResponse.from(newAccount, '0');
   }
 
@@ -72,6 +76,8 @@ export class AccountsService {
     await this.getOwnedAccount(userId, accountId);
 
     await this.repo.updateAccountStatus(accountId, AccountStatus.CLOSED);
+
+    this.logger.info({ userId, accountId }, 'Account closed');
 
     return 'Account is closed successfully!';
   }
@@ -100,6 +106,8 @@ export class AccountsService {
 
       const balance = await this.repo.computeBalance(tx, accountId);
 
+      this.logger.info({ userId, accountId, amount: amount.toString() }, 'Deposit completed');
+
       return AccountResponse.from(lockedAcc, balance.toString());
     });
   }
@@ -122,6 +130,10 @@ export class AccountsService {
       const balance = await this.repo.computeBalance(tx, accountId);
 
       if (balance.lt(amount)) {
+        this.logger.warn(
+          { userId, accountId, amount: amount.toString(), balance: balance.toString() },
+          'Withdrawal rejected: insufficient funds',
+        );
         throw new InsufficientFundsException();
       }
 
@@ -133,6 +145,8 @@ export class AccountsService {
       });
 
       const newBalance = await this.repo.computeBalance(tx, accountId);
+
+      this.logger.info({ userId, accountId, amount: amount.toString() }, 'Withdrawal completed');
 
       return AccountResponse.from(lockedAcc, newBalance.toString());
     });
@@ -167,6 +181,10 @@ export class AccountsService {
       );
 
       if (existing) {
+        this.logger.info(
+          { accountId, transferId },
+          'Transfer debit already applied, skipping (idempotent retry)',
+        );
         const balance = await this.repo.computeBalance(tx, accountId);
         return AccountResponse.from(lockedAcc, balance.toString());
       }
@@ -174,6 +192,10 @@ export class AccountsService {
       const balance = await this.repo.computeBalance(tx, accountId);
 
       if (balance.lt(amount)) {
+        this.logger.warn(
+          { accountId, transferId, amount: amount.toString(), balance: balance.toString() },
+          'Transfer debit rejected: insufficient funds',
+        );
         throw new InsufficientFundsException();
       }
 
@@ -186,6 +208,11 @@ export class AccountsService {
       });
 
       const newBalance = await this.repo.computeBalance(tx, accountId);
+
+      this.logger.info(
+        { accountId, transferId, amount: amount.toString() },
+        'Transfer debit applied',
+      );
 
       return AccountResponse.from(lockedAcc, newBalance.toString());
     });
@@ -212,6 +239,10 @@ export class AccountsService {
       );
 
       if (existing) {
+        this.logger.info(
+          { accountId, transferId },
+          'Transfer credit already applied, skipping (idempotent retry)',
+        );
         const balance = await this.repo.computeBalance(tx, accountId);
         return AccountResponse.from(lockedAcc, balance.toString());
       }
@@ -225,6 +256,11 @@ export class AccountsService {
       });
 
       const newBalance = await this.repo.computeBalance(tx, accountId);
+
+      this.logger.info(
+        { accountId, transferId, amount: amount.toString() },
+        'Transfer credit applied',
+      );
 
       return AccountResponse.from(lockedAcc, newBalance.toString());
     });
@@ -251,6 +287,10 @@ export class AccountsService {
       );
 
       if (existing) {
+        this.logger.info(
+          { accountId, transferId },
+          'Transfer reversal already applied, skipping (idempotent retry)',
+        );
         const balance = await this.repo.computeBalance(tx, accountId);
         return AccountResponse.from(lockedAcc, balance.toString());
       }
@@ -264,6 +304,11 @@ export class AccountsService {
       });
 
       const newBalance = await this.repo.computeBalance(tx, accountId);
+
+      this.logger.warn(
+        { accountId, transferId, amount: amount.toString() },
+        'Transfer reversal applied (compensating action)',
+      );
 
       return AccountResponse.from(lockedAcc, newBalance.toString());
     });
