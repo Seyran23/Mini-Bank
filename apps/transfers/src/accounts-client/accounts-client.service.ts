@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@minibank/errors';
+import { createLogger } from '@minibank/logger';
 
 import { TRANSFERS_CONFIG, type TransfersConfig } from '@/config/transfers.config';
 import { Currency } from '@/generated/prisma';
@@ -27,6 +28,8 @@ export interface LedgerEntrySnapshot {
 
 @Injectable()
 export class AccountsClient {
+  private readonly logger = createLogger('transfers');
+
   constructor(@Inject(TRANSFERS_CONFIG) private readonly config: TransfersConfig) {}
 
   async getAccount(
@@ -43,12 +46,18 @@ export class AccountsClient {
     });
 
     if (res.status === 403) {
+      this.logger.warn({ accountId, correlationId }, 'getAccount rejected: not the owner');
       throw new ForbiddenException('You are not the owner of this account!');
     }
     if (res.status === 404) {
+      this.logger.warn({ accountId, correlationId }, 'getAccount rejected: account not found');
       throw new NotFoundException('Account', accountId);
     }
     if (!res.ok) {
+      this.logger.error(
+        { accountId, correlationId, status: res.status },
+        'getAccount call to Accounts failed',
+      );
       throw new ServiceUnavailableException('Accounts');
     }
 
@@ -122,6 +131,10 @@ export class AccountsClient {
 
     if (!res.ok) {
       const body = await res.text();
+      this.logger.error(
+        { path, transferId, correlationId, status: res.status },
+        'Internal call to Accounts failed',
+      );
       throw new Error(`Accounts request to ${path} failed with ${res.status}: ${body}`);
     }
 

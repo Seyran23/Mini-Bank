@@ -3,12 +3,14 @@ import { JwtService } from '@nestjs/jwt';
 import { FastifyRequest } from 'fastify';
 
 import { UnauthorizedException } from '@minibank/errors';
+import { createLogger } from '@minibank/logger';
 
 import { TRANSFERS_CONFIG, type TransfersConfig } from '@/config/transfers.config';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly publicKey: Buffer;
+  private readonly logger = createLogger('transfers');
 
   constructor(
     private readonly jwt: JwtService,
@@ -22,6 +24,7 @@ export class JwtAuthGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
+      this.logger.warn({ url: request.url }, 'Request rejected: missing access token');
       throw new UnauthorizedException('Missing access token');
     }
 
@@ -38,7 +41,11 @@ export class JwtAuthGuard implements CanActivate {
       request.user = { id: payload.sub };
 
       return true;
-    } catch {
+    } catch (err) {
+      this.logger.warn(
+        { url: request.url, err: err instanceof Error ? err.message : String(err) },
+        'Request rejected: invalid or expired access token',
+      );
       throw new UnauthorizedException('Invalid or expired access token');
     }
   }

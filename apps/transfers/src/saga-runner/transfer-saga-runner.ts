@@ -34,9 +34,15 @@ export class TransferSagaRunner {
   }
 
   private async advance(transfer: Transfer): Promise<void> {
+    const correlationId = transfer.correlationId ?? randomUUID();
+
     switch (transfer.sagaState) {
       case SagaState.INITIATED:
         await this.repo.claimTransfer(transfer.id, SagaState.INITIATED, SagaState.DEBIT_PENDING);
+        this.logger.info(
+          { transferId: transfer.id, correlationId, from: 'INITIATED', to: 'DEBIT_PENDING' },
+          'Saga advanced',
+        );
         break;
       case SagaState.DEBIT_PENDING:
         try {
@@ -44,14 +50,22 @@ export class TransferSagaRunner {
             transfer.fromAccountId,
             transfer.id,
             transfer.amount.toString(),
-            transfer.correlationId ?? randomUUID(),
+            correlationId,
           );
           await this.repo.claimTransfer(
             transfer.id,
             SagaState.DEBIT_PENDING,
             SagaState.DEBIT_COMPLETE,
           );
+          this.logger.info(
+            { transferId: transfer.id, correlationId, from: 'DEBIT_PENDING', to: 'DEBIT_COMPLETE' },
+            'Saga advanced',
+          );
         } catch (e) {
+          this.logger.error(
+            { transferId: transfer.id, correlationId, err: this.errorMessage(e) },
+            'Debit step failed, failing transfer',
+          );
           await this.repo.advanceSagaStateWithOutboxEvent(
             transfer.id,
             SagaState.FAILED,
@@ -66,6 +80,10 @@ export class TransferSagaRunner {
           SagaState.DEBIT_COMPLETE,
           SagaState.CREDIT_PENDING,
         );
+        this.logger.info(
+          { transferId: transfer.id, correlationId, from: 'DEBIT_COMPLETE', to: 'CREDIT_PENDING' },
+          'Saga advanced',
+        );
 
         break;
       case SagaState.CREDIT_PENDING:
@@ -74,7 +92,7 @@ export class TransferSagaRunner {
             transfer.toAccountId,
             transfer.id,
             transfer.amount.toString(),
-            transfer.correlationId ?? randomUUID(),
+            correlationId,
           );
 
           await this.repo.advanceSagaStateWithOutboxEvent(
@@ -82,7 +100,15 @@ export class TransferSagaRunner {
             SagaState.COMPLETED,
             this.buildCompletedEvent(transfer),
           );
+          this.logger.info(
+            { transferId: transfer.id, correlationId, from: 'CREDIT_PENDING', to: 'COMPLETED' },
+            'Saga advanced',
+          );
         } catch (e) {
+          this.logger.warn(
+            { transferId: transfer.id, correlationId, err: this.errorMessage(e) },
+            'Credit step failed, starting compensation',
+          );
           await this.repo.advanceSagaState(
             transfer.id,
             SagaState.COMPENSATING,
@@ -97,14 +123,23 @@ export class TransferSagaRunner {
             transfer.fromAccountId,
             transfer.id,
             transfer.amount.toString(),
-            transfer.correlationId ?? randomUUID(),
+            correlationId,
           );
           await this.repo.advanceSagaStateWithOutboxEvent(
             transfer.id,
             SagaState.COMPENSATED,
             this.buildTransferFailedEvent(transfer, 'Credit failed; debit was reversed'),
           );
-        } catch {}
+          this.logger.info(
+            { transferId: transfer.id, correlationId, from: 'COMPENSATING', to: 'COMPENSATED' },
+            'Saga advanced',
+          );
+        } catch (e) {
+          this.logger.error(
+            { transferId: transfer.id, correlationId, err: this.errorMessage(e) },
+            'Compensation (reversal) failed, will retry next tick',
+          );
+        }
         break;
     }
   }

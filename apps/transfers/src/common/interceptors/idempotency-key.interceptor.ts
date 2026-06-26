@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   ValidationException,
 } from '@minibank/errors';
+import { createLogger } from '@minibank/logger';
 
 import { RedisService } from '@/redis/redis.service';
 
@@ -23,6 +24,8 @@ const TTL_SECONDS = 86400;
 
 @Injectable()
 export class IdempotencyKeyInterceptor {
+  private readonly logger = createLogger('transfers');
+
   constructor(private readonly redis: RedisService) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
@@ -46,6 +49,7 @@ export class IdempotencyKeyInterceptor {
     const claimed = await client.set(redisKey, 'PENDING', 'EX', TTL_SECONDS, 'NX');
 
     if (claimed === 'OK') {
+      this.logger.info({ idempotencyKey, userId: request.user.id }, 'Idempotency key claimed');
       return next.handle().pipe(
         tap((body) => {
           void this.storeResult(redisKey, { statusCode: reply.statusCode, body, bodyHash });
@@ -62,14 +66,27 @@ export class IdempotencyKeyInterceptor {
     const existingRaw = await client.get(redisKey);
 
     if (!existingRaw || existingRaw === 'PENDING') {
+      this.logger.warn(
+        { idempotencyKey, userId: request.user.id },
+        'Idempotency conflict: request already in progress',
+      );
       throw new ConflictException('A request with this Idempotency-Key is already in progress');
     }
 
     const existing = JSON.parse(existingRaw) as CachedResult;
 
     if (existing.bodyHash !== bodyHash) {
+      this.logger.warn(
+        { idempotencyKey, userId: request.user.id },
+        'Idempotency conflict: same key reused with a different body',
+      );
       throw new ConflictException('Idempotency-Key reuse with a different request body');
     }
+
+    this.logger.info(
+      { idempotencyKey, userId: request.user.id },
+      'Idempotency key replay: returning cached response',
+    );
 
     reply.status(existing.statusCode).send(existing.body);
     return of(existing.body);

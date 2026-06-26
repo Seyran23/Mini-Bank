@@ -24,6 +24,10 @@ export class OutBoxPublisher {
       try {
         this.rabbitMQ.publish(event.eventType, event.payload);
         await this.repo.markOutboxEventPublished(event.id);
+        this.logger.info(
+          { outboxEventId: event.id, eventType: event.eventType },
+          'Outbox event published',
+        );
       } catch (e) {
         this.logger.error({ err: e, outboxEventId: event.id }, 'Failed to publish outbox event');
       }
