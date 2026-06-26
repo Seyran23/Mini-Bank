@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { AuthService } from '@/auth/auth.service';
@@ -7,11 +16,21 @@ import { LogoutDto } from '@/auth/dto/logout.dto';
 import { RefreshDto } from '@/auth/dto/refresh.dto';
 import { RegisterDto } from '@/auth/dto/register.dto';
 import { AuthTokensResponse } from '@/auth/responses/auth-tokens.response';
+import { InternalAuthGuard } from '@/common/guards/internal-auth.guard';
+
+import { UserResponse } from './responses/user.response';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('internal/users/:id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(InternalAuthGuard)
+  internalGetUserById(@Param('id') userId: string): Promise<UserResponse> {
+    return this.authService.internalGetUserById(userId);
+  }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
