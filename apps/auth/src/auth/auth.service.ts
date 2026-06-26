@@ -3,7 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
 
-import { ConflictException, UnauthorizedException } from '@minibank/errors';
+import { ConflictException, NotFoundException, UnauthorizedException } from '@minibank/errors';
+import { createLogger } from '@minibank/logger';
 
 import { AuthRepository } from '@/auth/auth.repository';
 import { hashToken, parseExpiryToDate } from '@/auth/auth.utils';
@@ -20,6 +21,7 @@ import { User } from '@/generated/prisma';
 export class AuthService {
   private static readonly MAX_SESSIONS = 5;
 
+  private readonly logger = createLogger('auth');
   private readonly accessPrivateKey: Buffer;
   private readonly refreshPrivateKey: Buffer;
 
@@ -46,6 +48,8 @@ export class AuthService {
       lastName: dto.lastName,
     });
 
+    this.logger.info({ userId: user.id, email: user.email }, 'User registered');
+
     return this.issueTokens(user, uuidv4(), uuidv4());
   }
 
@@ -53,13 +57,20 @@ export class AuthService {
     const user = await this.repo.findUserByEmail(dto.email.toLowerCase());
 
     if (!user || !(await argon2.verify(user.passwordHash, dto.password))) {
+      this.logger.warn({ email: dto.email.toLowerCase() }, 'Login failed: invalid credentials');
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const activeSessions = await this.repo.countActiveSessions(user.id);
     if (activeSessions >= AuthService.MAX_SESSIONS) {
+      this.logger.info(
+        { userId: user.id, activeSessions },
+        'Max sessions reached, revoking oldest session',
+      );
       await this.repo.revokeOldestSession(user.id);
     }
+
+    this.logger.info({ userId: user.id, email: user.email }, 'User logged in');
 
     return this.issueTokens(user, uuidv4(), uuidv4());
   }
@@ -73,7 +84,6 @@ export class AuthService {
     }
 
     if (stored.isRevoked) {
-      // Token was already used — this is a replay attack. Invalidate the whole login session.
       await this.repo.revokeTokenFamily(stored.familyId);
       throw new UnauthorizedException('Refresh token reuse detected');
     }
@@ -94,7 +104,16 @@ export class AuthService {
     if (stored && !stored.isRevoked) {
       await this.repo.revokeRefreshToken(stored.id);
     }
-    // Intentionally idempotent — no error if token is unknown or already revoked
+  }
+
+  async internalGetUserById(userId: string): Promise<UserResponse> {
+    const user = await this.repo.findUserById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User', userId);
+    }
+
+    return UserResponse.from(user);
   }
 
   private async issueTokens(
