@@ -16,6 +16,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@fastify/static": "^7.0.4",
     "@minibank/config": "workspace:*",
     "@minibank/errors": "workspace:*",
     "@minibank/logger": "workspace:*",
@@ -25,11 +26,11 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/mapped-types": "^2.0.6",
     "@nestjs/platform-fastify": "^10.4.15",
-    "fastify": "^5.2.1",
     "@nestjs/swagger": "^7.4.2",
     "@prisma/client": "^6.3.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "fastify": "4.28.1",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "reflect-metadata": "^0.2.2",
