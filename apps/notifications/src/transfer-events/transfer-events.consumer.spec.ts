@@ -4,6 +4,7 @@ import { Currency } from '@minibank/types';
 
 import { AuthClientService } from '@/auth-client/auth-client.service';
 import { EmailSender } from '@/email/email-sender.service';
+import { PermanentFailureError } from '@/rabbitmq/permanent-failure.error';
 import { RabbitMQService } from '@/rabbitmq/rabbitmq.service';
 import { EventDedupService } from '@/redis/event-dedup.service';
 
@@ -60,7 +61,11 @@ describe('TransferEventsConsumer', () => {
         { provide: RabbitMQService, useValue: { consume: jest.fn() } },
         {
           provide: EventDedupService,
-          useValue: { isProcessed: jest.fn(), markProcessed: jest.fn() },
+          useValue: {
+            isProcessed: jest.fn(),
+            markProcessed: jest.fn(),
+            incrementAttempts: jest.fn(),
+          },
         },
         { provide: AuthClientService, useValue: { getUser: jest.fn() } },
         { provide: EmailSender, useValue: { send: jest.fn() } },
@@ -74,6 +79,7 @@ describe('TransferEventsConsumer', () => {
     emailSender = module.get(EmailSender);
 
     dedup.isProcessed.mockResolvedValue(false);
+    dedup.incrementAttempts.mockResolvedValue(1);
     authClient.getUser.mockResolvedValue(mockUser);
 
     await consumer.onModuleInit();
@@ -140,5 +146,14 @@ describe('TransferEventsConsumer', () => {
 
     expect(emailSender.send).not.toHaveBeenCalled();
     expect(dedup.markProcessed).not.toHaveBeenCalled();
+  });
+
+  it('gives up permanently after too many failed attempts, without retrying the lookup', async () => {
+    dedup.incrementAttempts.mockResolvedValue(6);
+
+    await expect(handler(completedEvent)).rejects.toThrow(PermanentFailureError);
+
+    expect(authClient.getUser).not.toHaveBeenCalled();
+    expect(emailSender.send).not.toHaveBeenCalled();
   });
 });
