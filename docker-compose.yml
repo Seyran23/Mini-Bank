@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-minibank}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minibank}
     ports:
-      - '5432:5432'
+      - '5435:5432'
     volumes:
       - auth_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,11 +16,43 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Cache / Sessions ─────────────────────────────────────────────────────
+  accounts_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: accounts_db
+      POSTGRES_USER: ${POSTGRES_USER:-minibank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minibank}
+    ports:
+      - '5433:5432'
+    volumes:
+      - accounts_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-minibank} -d accounts_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  transfers_db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: transfers_db
+      POSTGRES_USER: ${POSTGRES_USER:-minibank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minibank}
+    ports:
+      - '5434:5432'
+    volumes:
+      - transfers_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-minibank} -d transfers_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Cache ─────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - '6380:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -46,7 +78,16 @@ services:
       timeout: 10s
       retries: 5
 
+  # ─── Email (local dev) ────────────────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI → http://localhost:8025
+
 volumes:
   auth_db_data:
+  accounts_db_data:
+  transfers_db_data:
   redis_data:
   rabbitmq_data:
