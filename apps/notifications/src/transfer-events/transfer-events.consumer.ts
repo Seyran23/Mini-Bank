@@ -5,10 +5,13 @@ import type { TransferCompletedEvent, TransferFailedEvent } from '@minibank/type
 
 import { AuthClientService } from '@/auth-client/auth-client.service';
 import { EmailSender } from '@/email/email-sender.service';
+import { PermanentFailureError } from '@/rabbitmq/permanent-failure.error';
 import { RabbitMQService } from '@/rabbitmq/rabbitmq.service';
 import { EventDedupService } from '@/redis/event-dedup.service';
 
 type TransferEvent = TransferCompletedEvent | TransferFailedEvent;
+
+const MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class TransferEventsConsumer implements OnModuleInit {
@@ -31,6 +34,13 @@ export class TransferEventsConsumer implements OnModuleInit {
     if (await this.dedup.isProcessed(eventId)) {
       this.logger.info({ eventId, correlationId }, 'Event already processed, skipping');
       return;
+    }
+
+    const attempts = await this.dedup.incrementAttempts(eventId);
+    if (attempts > MAX_ATTEMPTS) {
+      throw new PermanentFailureError(
+        `Giving up on event ${eventId} after ${attempts - 1} failed attempts`,
+      );
     }
 
     const email = this.buildEmail(event);

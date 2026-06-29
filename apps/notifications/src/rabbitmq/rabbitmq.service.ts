@@ -5,6 +5,8 @@ import { createLogger } from '@minibank/logger';
 
 import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '@/config/notifications.config';
 
+import { PermanentFailureError } from './permanent-failure.error';
+
 const EVENTS_EXCHANGE = 'minibank.events';
 const DEAD_LETTER_EXCHANGE = 'minibank.events.dlx';
 const DEAD_LETTER_QUEUE = 'minibank.events.dlq';
@@ -63,6 +65,15 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         await handler(payload);
         this.channel.ack(msg);
       } catch (err) {
+        if (err instanceof PermanentFailureError) {
+          this.logger.error(
+            { err: err.message },
+            'Handler gave up on this message permanently, dead-lettering without requeue',
+          );
+          this.channel.nack(msg, false, false);
+          return;
+        }
+
         this.logger.warn(
           { err: err instanceof Error ? err.message : String(err) },
           'Handler failed, requeueing message',
