@@ -68,6 +68,7 @@ export class AccountsClient {
     accountId: string,
     transferId: string,
     amount: string,
+    currency: Currency,
     correlationId: string,
     description?: string,
   ): Promise<LedgerEntrySnapshot> {
@@ -75,6 +76,7 @@ export class AccountsClient {
       `/accounts/${accountId}/internal/transfer-debit`,
       transferId,
       amount,
+      currency,
       correlationId,
       description,
     );
@@ -84,6 +86,7 @@ export class AccountsClient {
     accountId: string,
     transferId: string,
     amount: string,
+    currency: Currency,
     correlationId: string,
     description?: string,
   ): Promise<LedgerEntrySnapshot> {
@@ -91,6 +94,7 @@ export class AccountsClient {
       `/accounts/${accountId}/internal/transfer-credit`,
       transferId,
       amount,
+      currency,
       correlationId,
       description,
     );
@@ -100,6 +104,7 @@ export class AccountsClient {
     accountId: string,
     transferId: string,
     amount: string,
+    currency: Currency,
     correlationId: string,
     description?: string,
   ): Promise<LedgerEntrySnapshot> {
@@ -107,15 +112,44 @@ export class AccountsClient {
       `/accounts/${accountId}/internal/reversal`,
       transferId,
       amount,
+      currency,
       correlationId,
       description,
     );
+  }
+
+  // No ownership check on the Accounts side — used to look up currency
+  // (and existence) of an account the caller doesn't necessarily own, e.g.
+  // a transfer's destination account, which may belong to a different user.
+  async getAccountInternal(accountId: string, correlationId: string): Promise<AccountSnapshot> {
+    const res = await this.request(`/accounts/${accountId}/internal`, {
+      method: 'GET',
+      headers: {
+        'X-Internal-Api-Key': this.config.ACCOUNTS_INTERNAL_API_KEY,
+        'x-correlation-id': correlationId,
+      },
+    });
+
+    if (res.status === 404) {
+      this.logger.warn({ accountId, correlationId }, 'getAccountInternal: account not found');
+      throw new NotFoundException('Account', accountId);
+    }
+    if (!res.ok) {
+      this.logger.error(
+        { accountId, correlationId, status: res.status },
+        'getAccountInternal call to Accounts failed',
+      );
+      throw new ServiceUnavailableException('Accounts');
+    }
+
+    return (await res.json()) as AccountSnapshot;
   }
 
   private async callInternalEndpoint(
     path: string,
     transferId: string,
     amount: string,
+    currency: Currency,
     correlationId: string,
     description?: string,
   ): Promise<LedgerEntrySnapshot> {
@@ -126,7 +160,7 @@ export class AccountsClient {
         'X-Internal-Api-Key': this.config.ACCOUNTS_INTERNAL_API_KEY,
         'x-correlation-id': correlationId,
       },
-      body: JSON.stringify({ transferId, amount, description }),
+      body: JSON.stringify({ transferId, amount, currency, description }),
     });
 
     if (!res.ok) {

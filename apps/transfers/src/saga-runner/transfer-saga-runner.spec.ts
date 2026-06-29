@@ -87,6 +87,7 @@ describe('TransferSagaRunner', () => {
         transfer.fromAccountId,
         transfer.id,
         '40',
+        transfer.currency,
         transfer.correlationId,
       );
       expect(repo.claimTransfer).toHaveBeenCalledWith(
@@ -145,6 +146,7 @@ describe('TransferSagaRunner', () => {
         transfer.toAccountId,
         transfer.id,
         '40',
+        transfer.currency,
         transfer.correlationId,
       );
       expect(repo.advanceSagaStateWithOutboxEvent).toHaveBeenCalledTimes(1);
@@ -183,6 +185,7 @@ describe('TransferSagaRunner', () => {
         transfer.fromAccountId,
         transfer.id,
         '40',
+        transfer.currency,
         transfer.correlationId,
       );
       expect(repo.advanceSagaStateWithOutboxEvent).toHaveBeenCalledTimes(1);

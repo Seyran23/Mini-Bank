@@ -50,6 +50,7 @@ export class TransferSagaRunner {
             transfer.fromAccountId,
             transfer.id,
             transfer.amount.toString(),
+            transfer.currency,
             correlationId,
           );
           await this.repo.claimTransfer(
@@ -92,6 +93,7 @@ export class TransferSagaRunner {
             transfer.toAccountId,
             transfer.id,
             transfer.amount.toString(),
+            transfer.currency,
             correlationId,
           );
 
@@ -123,6 +125,7 @@ export class TransferSagaRunner {
             transfer.fromAccountId,
             transfer.id,
             transfer.amount.toString(),
+            transfer.currency,
             correlationId,
           );
           await this.repo.advanceSagaStateWithOutboxEvent(

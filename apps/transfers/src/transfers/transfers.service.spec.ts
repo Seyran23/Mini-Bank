@@ -62,6 +62,7 @@ describe('TransfersService', () => {
           provide: AccountsClient,
           useValue: {
             getAccount: jest.fn(),
+            getAccountInternal: jest.fn(),
           },
         },
       ],
@@ -77,6 +78,10 @@ describe('TransfersService', () => {
   describe('initiateTransfer', () => {
     it('creates a transfer once pre-flight checks pass', async () => {
       accountsClient.getAccount.mockResolvedValue(mockAccount);
+      accountsClient.getAccountInternal.mockResolvedValue({
+        ...mockAccount,
+        id: mockDto.toAccountId,
+      });
       repo.createTransfer.mockResolvedValue(mockTransfer);
 
       const result = await service.initiateTransfer(
@@ -89,6 +94,10 @@ describe('TransfersService', () => {
       expect(accountsClient.getAccount).toHaveBeenCalledWith(
         mockDto.fromAccountId,
         'access-token',
+        'correlation-id-1',
+      );
+      expect(accountsClient.getAccountInternal).toHaveBeenCalledWith(
+        mockDto.toAccountId,
         'correlation-id-1',
       );
       expect(repo.createTransfer).toHaveBeenCalledWith({
@@ -121,8 +130,22 @@ describe('TransfersService', () => {
       expect(repo.createTransfer).not.toHaveBeenCalled();
     });
 
-    it('throws ValidationException when currencies do not match', async () => {
+    it('throws ValidationException when the source currency does not match', async () => {
       accountsClient.getAccount.mockResolvedValue({ ...mockAccount, currency: Currency.EUR });
+
+      await expect(
+        service.initiateTransfer(userId, 'access-token', 'correlation-id-1', mockDto),
+      ).rejects.toThrow(ValidationException);
+      expect(repo.createTransfer).not.toHaveBeenCalled();
+    });
+
+    it('throws ValidationException when the destination currency does not match', async () => {
+      accountsClient.getAccount.mockResolvedValue(mockAccount);
+      accountsClient.getAccountInternal.mockResolvedValue({
+        ...mockAccount,
+        id: mockDto.toAccountId,
+        currency: Currency.EUR,
+      });
 
       await expect(
         service.initiateTransfer(userId, 'access-token', 'correlation-id-1', mockDto),

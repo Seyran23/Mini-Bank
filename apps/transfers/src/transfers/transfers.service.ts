@@ -55,6 +55,16 @@ export class TransfersService {
       throw new ValidationException('Currencies should match for being able to transfer');
     }
 
+    const toAccount = await this.accountsClient.getAccountInternal(dto.toAccountId, correlationId);
+
+    if (toAccount.currency !== dto.currency) {
+      this.logger.warn(
+        { userId, toAccountId: dto.toAccountId, correlationId },
+        'Transfer rejected: destination currency mismatch',
+      );
+      throw new ValidationException('Currencies should match for being able to transfer');
+    }
+
     const newTransfer = await this.repo.createTransfer({
       userId,
       fromAccountId: dto.fromAccountId,

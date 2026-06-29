@@ -6,6 +6,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
+import * as amqp from 'amqplib';
 import request from 'supertest';
 
 import { AccountSnapshot, AccountsClient } from '@/accounts-client/accounts-client.service';
@@ -28,6 +29,25 @@ function signAccessToken(userId: string): string {
     { sub: userId, type: 'access' },
     { algorithm: 'RS256', privateKey, expiresIn: '15m' },
   );
+}
+
+// Best-effort cleanup — purges queues this suite's real saga/outbox runs may
+// have published into, so a leftover test event never sits in Notifications'
+// queue waiting to be processed against a userId that was never real.
+async function purgeDownstreamQueues(): Promise<void> {
+  let connection: amqp.ChannelModel | undefined;
+  try {
+    connection = await amqp.connect(process.env['RABBITMQ_URL']!);
+    const channel = await connection.createChannel();
+    await channel.purgeQueue('notifications.events.queue').catch(() => undefined);
+    await channel.purgeQueue('minibank.events.dlq').catch(() => undefined);
+    await channel.close();
+  } catch {
+    // Non-fatal — if RabbitMQ isn't reachable here, the actual tests above
+    // would already have failed for the same reason.
+  } finally {
+    await connection?.close();
+  }
 }
 
 describe('Transfers (e2e)', () => {
@@ -64,6 +84,7 @@ describe('Transfers (e2e)', () => {
 
     const accountsClientMock = {
       getAccount: jest.fn(),
+      getAccountInternal: jest.fn(),
       transferDebit: jest.fn(),
       transferCredit: jest.fn(),
       reversal: jest.fn(),
@@ -98,6 +119,12 @@ describe('Transfers (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    // The saga runner/outbox publisher genuinely publish real events to the
+    // shared RabbitMQ instance during these tests (e.g. the compensation
+    // case below). Without this, those events sit in Notifications' queue
+    // indefinitely, referencing a userId ('e2e-user-1') that was never a
+    // real Auth user — a poison message Notifications can never resolve.
+    await purgeDownstreamQueues();
   });
 
   beforeEach(async () => {
@@ -105,6 +132,9 @@ describe('Transfers (e2e)', () => {
     await prisma.transfer.deleteMany();
     jest.clearAllMocks();
     accountsClient.getAccount.mockResolvedValue(activeAccount());
+    accountsClient.getAccountInternal.mockResolvedValue(
+      activeAccount({ id: destinationAccountId }),
+    );
   });
 
   describe('POST /transfers', () => {
@@ -165,6 +195,26 @@ describe('Transfers (e2e)', () => {
         });
 
       expect(res.status).toBe(403);
+    });
+
+    it('returns 422 when the destination account currency does not match', async () => {
+      accountsClient.getAccountInternal.mockResolvedValue(
+        activeAccount({ id: destinationAccountId, currency: Currency.EUR }),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/transfers')
+        .set(authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          fromAccountId: sourceAccountId,
+          toAccountId: destinationAccountId,
+          amount: '40',
+          currency: 'USD',
+        });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
     });
 
     describe('idempotency', () => {
@@ -333,6 +383,7 @@ describe('Transfers (e2e)', () => {
         sourceAccountId,
         transferId,
         '40',
+        'USD',
         expect.any(String),
       );
     });
