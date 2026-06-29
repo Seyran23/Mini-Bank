@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { ACCESS_TOKEN_COOKIE } from '@/lib/config';
+
 const AUTH_PAGES = ['/login', '/register'];
 
 export function middleware(request: NextRequest) {
-  const hasAccessToken = request.cookies.has('access_token');
+  const hasAccessToken = request.cookies.has(ACCESS_TOKEN_COOKIE);
   const { pathname } = request.nextUrl;
   const isAuthPage = AUTH_PAGES.some((page) => pathname.startsWith(page));
 

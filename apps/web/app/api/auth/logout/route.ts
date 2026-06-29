@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { clearAuthCookies, getRefreshToken } from '@/lib/api/auth-cookies';
-
-const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:3000';
+import { GATEWAY_URL } from '@/lib/config';
 
 export async function POST() {
   const refreshToken = await getRefreshToken();

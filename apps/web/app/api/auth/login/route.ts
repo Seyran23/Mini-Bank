@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { setAuthCookies } from '@/lib/api/auth-cookies';
 import { ApiError } from '@/lib/api/errors';
-
-const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:3000';
+import { GATEWAY_URL } from '@/lib/config';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();

@@ -1,9 +1,8 @@
 import { cookies } from 'next/headers';
 
-import { getTokenMaxAgeSeconds } from './jwt';
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/config';
 
-const ACCESS_TOKEN_COOKIE = 'access_token';
-const REFRESH_TOKEN_COOKIE = 'refresh_token';
+import { getTokenMaxAgeSeconds } from './jwt';
 
 const isProd = process.env.VERCEL_ENV === 'production';
 

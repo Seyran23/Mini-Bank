@@ -1,9 +1,9 @@
 import 'server-only';
 
+import { GATEWAY_URL } from '@/lib/config';
+
 import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from './auth-cookies';
 import { ApiError } from './errors';
-
-const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:3000';
 
 interface ApiFetchOptions extends RequestInit {
   parseAs?: 'json' | 'text';
