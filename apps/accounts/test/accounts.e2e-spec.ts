@@ -232,7 +232,7 @@ describe('Accounts (e2e)', () => {
       it('returns 401 without the internal api key', async () => {
         const res = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(res.status).toBe(401);
       });
@@ -241,7 +241,7 @@ describe('Accounts (e2e)', () => {
         const res = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
           .set({ 'x-internal-api-key': 'wrong-key' })
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(res.status).toBe(401);
       });
@@ -250,14 +250,14 @@ describe('Accounts (e2e)', () => {
         const res = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(res.status).toBe(200);
         expect(res.body.balance).toBe('60.00');
       });
 
       it('retrying the same transferId does not debit twice', async () => {
-        const body = { transferId, amount: '40' };
+        const body = { transferId, amount: '40', currency: Currency.USD };
 
         await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
@@ -277,17 +277,27 @@ describe('Accounts (e2e)', () => {
         const res = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '1000' });
+          .send({ transferId, amount: '1000', currency: Currency.USD });
 
         expect(res.status).toBe(422);
         expect(res.body.code).toBe('INSUFFICIENT_FUNDS');
+      });
+
+      it('returns 422 when the requested currency does not match the account', async () => {
+        const res = await request(app.getHttpServer())
+          .post(`/accounts/${accountId}/internal/transfer-debit`)
+          .set(internalAuthHeader)
+          .send({ transferId, amount: '40', currency: Currency.EUR });
+
+        expect(res.status).toBe(422);
+        expect(res.body.code).toBe('VALIDATION_ERROR');
       });
 
       it('credits the destination account', async () => {
         const res = await request(app.getHttpServer())
           .post(`/accounts/${otherAccountId}/internal/transfer-credit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(res.status).toBe(200);
         expect(res.body.balance).toBe('40.00');
@@ -297,12 +307,12 @@ describe('Accounts (e2e)', () => {
         await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         const res = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/reversal`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(res.status).toBe(200);
         expect(res.body.balance).toBe('100.00');
@@ -312,15 +322,41 @@ describe('Accounts (e2e)', () => {
         const debitRes = await request(app.getHttpServer())
           .post(`/accounts/${accountId}/internal/transfer-debit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         const creditRes = await request(app.getHttpServer())
           .post(`/accounts/${otherAccountId}/internal/transfer-credit`)
           .set(internalAuthHeader)
-          .send({ transferId, amount: '40' });
+          .send({ transferId, amount: '40', currency: Currency.USD });
 
         expect(debitRes.body.balance).toBe('60.00');
         expect(creditRes.body.balance).toBe('40.00');
+      });
+    });
+
+    describe('GET /accounts/:id/internal', () => {
+      it('returns 401 without the internal api key', async () => {
+        const res = await request(app.getHttpServer()).get(`/accounts/${accountId}/internal`);
+
+        expect(res.status).toBe(401);
+      });
+
+      it('returns the account regardless of which user owns it', async () => {
+        const res = await request(app.getHttpServer())
+          .get(`/accounts/${accountId}/internal`)
+          .set({ 'x-internal-api-key': process.env['ACCOUNTS_INTERNAL_API_KEY']! });
+
+        expect(res.status).toBe(200);
+        expect(res.body.id).toBe(accountId);
+        expect(res.body.userId).toBe(userId);
+      });
+
+      it('returns 404 for an unknown account', async () => {
+        const res = await request(app.getHttpServer())
+          .get(`/accounts/${randomUUID()}/internal`)
+          .set({ 'x-internal-api-key': process.env['ACCOUNTS_INTERNAL_API_KEY']! });
+
+        expect(res.status).toBe(404);
       });
     });
 

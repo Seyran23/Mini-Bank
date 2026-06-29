@@ -117,6 +117,24 @@ describe('AccountsService', () => {
     });
   });
 
+  describe('internalGetAccount', () => {
+    it('returns the account with its balance regardless of ownership', async () => {
+      repo.findAccountById.mockResolvedValue(otherUsersAccount);
+      repo.getBalance.mockResolvedValue(new Prisma.Decimal('75'));
+
+      const result = await service.internalGetAccount(otherUsersAccount.id);
+
+      expect(result.userId).toBe(otherUsersAccount.userId);
+      expect(result.balance).toBe('75.00');
+    });
+
+    it('throws NotFoundException when the account does not exist', async () => {
+      repo.findAccountById.mockResolvedValue(null);
+
+      await expect(service.internalGetAccount('missing-id')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('listAccounts', () => {
     it('returns all accounts for a user with their balances', async () => {
       repo.findAccountsByUserId.mockResolvedValue([mockAccount]);
@@ -260,6 +278,7 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
         'transfer out',
       );
 
@@ -279,6 +298,7 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
       );
 
       expect(repo.createLedgerEntry).not.toHaveBeenCalled();
@@ -290,7 +310,12 @@ describe('AccountsService', () => {
       repo.computeBalance.mockResolvedValue(new Prisma.Decimal('30'));
 
       await expect(
-        service.internalTransferDebit(mockAccount.id, 'transfer-id-1', new Prisma.Decimal('40')),
+        service.internalTransferDebit(
+          mockAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('40'),
+          Currency.USD,
+        ),
       ).rejects.toThrow(InsufficientFundsException);
 
       expect(repo.createLedgerEntry).not.toHaveBeenCalled();
@@ -298,7 +323,12 @@ describe('AccountsService', () => {
 
     it('throws ValidationException for a non-positive amount', () => {
       expect(() =>
-        service.internalTransferDebit(mockAccount.id, 'transfer-id-1', new Prisma.Decimal('0')),
+        service.internalTransferDebit(
+          mockAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('0'),
+          Currency.USD,
+        ),
       ).toThrow(ValidationException);
     });
 
@@ -306,8 +336,28 @@ describe('AccountsService', () => {
       repo.findAccountById.mockResolvedValue(closedAccount);
 
       await expect(
-        service.internalTransferDebit(closedAccount.id, 'transfer-id-1', new Prisma.Decimal('10')),
+        service.internalTransferDebit(
+          closedAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('10'),
+          Currency.USD,
+        ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ValidationException when the requested currency does not match the account', async () => {
+      repo.findAccountById.mockResolvedValue(mockAccount);
+
+      await expect(
+        service.internalTransferDebit(
+          mockAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('10'),
+          Currency.EUR,
+        ),
+      ).rejects.toThrow(ValidationException);
+
+      expect(repo.createLedgerEntry).not.toHaveBeenCalled();
     });
   });
 
@@ -320,6 +370,7 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
         'transfer in',
       );
 
@@ -339,6 +390,7 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
       );
 
       expect(repo.createLedgerEntry).not.toHaveBeenCalled();
@@ -349,8 +401,28 @@ describe('AccountsService', () => {
       repo.findAccountById.mockResolvedValue(closedAccount);
 
       await expect(
-        service.internalTransferCredit(closedAccount.id, 'transfer-id-1', new Prisma.Decimal('10')),
+        service.internalTransferCredit(
+          closedAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('10'),
+          Currency.USD,
+        ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ValidationException when the requested currency does not match the account', async () => {
+      repo.findAccountById.mockResolvedValue(mockAccount);
+
+      await expect(
+        service.internalTransferCredit(
+          mockAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('10'),
+          Currency.EUR,
+        ),
+      ).rejects.toThrow(ValidationException);
+
+      expect(repo.createLedgerEntry).not.toHaveBeenCalled();
     });
   });
 
@@ -363,6 +435,7 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
         'reversed debit',
       );
 
@@ -382,10 +455,26 @@ describe('AccountsService', () => {
         mockAccount.id,
         'transfer-id-1',
         new Prisma.Decimal('40'),
+        Currency.USD,
       );
 
       expect(repo.createLedgerEntry).not.toHaveBeenCalled();
       expect(result.balance).toBe('40.00');
+    });
+
+    it('throws ValidationException when the requested currency does not match the account', async () => {
+      repo.findAccountById.mockResolvedValue(mockAccount);
+
+      await expect(
+        service.internalTransferReversal(
+          mockAccount.id,
+          'transfer-id-1',
+          new Prisma.Decimal('10'),
+          Currency.EUR,
+        ),
+      ).rejects.toThrow(ValidationException);
+
+      expect(repo.createLedgerEntry).not.toHaveBeenCalled();
     });
   });
 

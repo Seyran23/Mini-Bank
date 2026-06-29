@@ -72,6 +72,18 @@ export class AccountsService {
     );
   }
 
+  async internalGetAccount(accountId: string): Promise<AccountResponse> {
+    const acc = await this.repo.findAccountById(accountId);
+
+    if (!acc) {
+      throw new NotFoundException('Account', accountId);
+    }
+
+    const balance = await this.repo.getBalance(accountId);
+
+    return AccountResponse.from(acc, balance.toString());
+  }
+
   async closeAccount(userId: string, accountId: string): Promise<string> {
     await this.getOwnedAccount(userId, accountId);
 
@@ -164,6 +176,7 @@ export class AccountsService {
     accountId: string,
     transferId: string,
     amount: Prisma.Decimal,
+    currency: Currency,
     description?: string,
   ): Promise<AccountResponse> {
     if (amount.lte(0)) {
@@ -172,6 +185,19 @@ export class AccountsService {
 
     return this.repo.withAccountLock(accountId, async (tx) => {
       const lockedAcc = await this.getActiveAccount(accountId);
+
+      if (lockedAcc.currency !== currency) {
+        this.logger.warn(
+          {
+            accountId,
+            transferId,
+            accountCurrency: lockedAcc.currency,
+            requestedCurrency: currency,
+          },
+          'Transfer debit rejected: currency mismatch',
+        );
+        throw new ValidationException('Currencies should match for being able to transfer');
+      }
 
       const existing = await this.repo.findLedgerEntryByRelatedTransaction(
         tx,
@@ -222,6 +248,7 @@ export class AccountsService {
     accountId: string,
     transferId: string,
     amount: Prisma.Decimal,
+    currency: Currency,
     description?: string,
   ): Promise<AccountResponse> {
     if (amount.lte(0)) {
@@ -230,6 +257,19 @@ export class AccountsService {
 
     return this.repo.withAccountLock(accountId, async (tx) => {
       const lockedAcc = await this.getActiveAccount(accountId);
+
+      if (lockedAcc.currency !== currency) {
+        this.logger.warn(
+          {
+            accountId,
+            transferId,
+            accountCurrency: lockedAcc.currency,
+            requestedCurrency: currency,
+          },
+          'Transfer credit rejected: currency mismatch',
+        );
+        throw new ValidationException('Currencies should match for being able to transfer');
+      }
 
       const existing = await this.repo.findLedgerEntryByRelatedTransaction(
         tx,
@@ -270,6 +310,7 @@ export class AccountsService {
     accountId: string,
     transferId: string,
     amount: Prisma.Decimal,
+    currency: Currency,
     description?: string,
   ): Promise<AccountResponse> {
     if (amount.lte(0)) {
@@ -278,6 +319,19 @@ export class AccountsService {
 
     return this.repo.withAccountLock(accountId, async (tx) => {
       const lockedAcc = await this.getActiveAccount(accountId);
+
+      if (lockedAcc.currency !== currency) {
+        this.logger.warn(
+          {
+            accountId,
+            transferId,
+            accountCurrency: lockedAcc.currency,
+            requestedCurrency: currency,
+          },
+          'Transfer reversal rejected: currency mismatch',
+        );
+        throw new ValidationException('Currencies should match for being able to transfer');
+      }
 
       const existing = await this.repo.findLedgerEntryByRelatedTransaction(
         tx,

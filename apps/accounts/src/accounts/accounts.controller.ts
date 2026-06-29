@@ -102,6 +102,13 @@ export class AccountsController {
     return this.accountsService.closeAccount(userId, accountId);
   }
 
+  @Get(':id/internal')
+  @UseGuards(InternalAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  internalGetAccount(@Param('id') accountId: string): Promise<AccountResponse> {
+    return this.accountsService.internalGetAccount(accountId);
+  }
+
   @Post(':id/internal/transfer-debit')
   @UseGuards(InternalAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -109,12 +116,13 @@ export class AccountsController {
     @Param('id') accountId: string,
     @Body() transferDto: InternalTransferDto,
   ): Promise<AccountResponse> {
-    const { transferId, amount, description } = transferDto;
+    const { transferId, amount, currency, description } = transferDto;
 
     return this.accountsService.internalTransferDebit(
       accountId,
       transferId,
       new Prisma.Decimal(amount),
+      currency,
       description,
     );
   }
@@ -126,12 +134,13 @@ export class AccountsController {
     @Param('id') accountId: string,
     @Body() transferDto: InternalTransferDto,
   ): Promise<AccountResponse> {
-    const { transferId, amount, description } = transferDto;
+    const { transferId, amount, currency, description } = transferDto;
 
     return this.accountsService.internalTransferCredit(
       accountId,
       transferId,
       new Prisma.Decimal(amount),
+      currency,
       description,
     );
   }
@@ -143,12 +152,13 @@ export class AccountsController {
     @Param('id') accountId: string,
     @Body() transferDto: InternalTransferDto,
   ): Promise<AccountResponse> {
-    const { transferId, amount, description } = transferDto;
+    const { transferId, amount, currency, description } = transferDto;
 
     return this.accountsService.internalTransferReversal(
       accountId,
       transferId,
       new Prisma.Decimal(amount),
+      currency,
       description,
     );
   }
