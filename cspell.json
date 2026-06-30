@@ -1,0 +1,14 @@
+{
+  "version": "0.2",
+  "words": [
+    "willsoto",
+    "nestjs",
+    "minibank",
+    "prom",
+    "testcontainers",
+    "ioredis",
+    "amqplib",
+    "mailhog",
+    "grafana"
+  ]
+}
