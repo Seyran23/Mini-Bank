@@ -1,4 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter } from 'prom-client';
 
 import { createLogger } from '@minibank/logger';
 import type { TransferCompletedEvent, TransferFailedEvent } from '@minibank/types';
@@ -22,6 +24,10 @@ export class TransferEventsConsumer implements OnModuleInit {
     private readonly dedup: EventDedupService,
     private readonly authClient: AuthClientService,
     private readonly emailSender: EmailSender,
+    @InjectMetric('notifications_events_consumed_total')
+    private readonly consumedCounter: Counter<string>,
+    @InjectMetric('notifications_events_dead_lettered_total')
+    private readonly deadLetteredCounter: Counter<string>,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -38,6 +44,7 @@ export class TransferEventsConsumer implements OnModuleInit {
 
     const attempts = await this.dedup.incrementAttempts(eventId);
     if (attempts > MAX_ATTEMPTS) {
+      this.deadLetteredCounter.inc({ event_type: event.type });
       throw new PermanentFailureError(
         `Giving up on event ${eventId} after ${attempts - 1} failed attempts`,
       );
@@ -54,6 +61,7 @@ export class TransferEventsConsumer implements OnModuleInit {
     await this.emailSender.send(user.email, email.subject, email.body);
 
     await this.dedup.markProcessed(eventId);
+    this.consumedCounter.inc({ event_type: event.type });
 
     this.logger.info({ eventId, correlationId, to: user.email }, 'Notification email sent');
   }
