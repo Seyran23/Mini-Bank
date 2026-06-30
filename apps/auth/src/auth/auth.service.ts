@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import * as argon2 from 'argon2';
+import { Counter } from 'prom-client';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ConflictException, NotFoundException, UnauthorizedException } from '@minibank/errors';
@@ -29,6 +31,10 @@ export class AuthService {
     private readonly repo: AuthRepository,
     private readonly jwt: JwtService,
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
+    @InjectMetric('auth_registrations_total')
+    private readonly registrationsCounter: Counter<string>,
+    @InjectMetric('auth_logins_total')
+    private readonly loginsCounter: Counter<string>,
   ) {
     this.accessPrivateKey = Buffer.from(config.AUTH_JWT_ACCESS_PRIVATE_KEY_BASE64, 'base64');
     this.refreshPrivateKey = Buffer.from(config.AUTH_JWT_REFRESH_PRIVATE_KEY_BASE64, 'base64');
@@ -49,6 +55,7 @@ export class AuthService {
     });
 
     this.logger.info({ userId: user.id, email: user.email }, 'User registered');
+    this.registrationsCounter.inc();
 
     return this.issueTokens(user, uuidv4(), uuidv4());
   }
@@ -58,6 +65,7 @@ export class AuthService {
 
     if (!user || !(await argon2.verify(user.passwordHash, dto.password))) {
       this.logger.warn({ email: dto.email.toLowerCase() }, 'Login failed: invalid credentials');
+      this.loginsCounter.inc({ result: 'failure' });
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -71,6 +79,7 @@ export class AuthService {
     }
 
     this.logger.info({ userId: user.id, email: user.email }, 'User logged in');
+    this.loginsCounter.inc({ result: 'success' });
 
     return this.issueTokens(user, uuidv4(), uuidv4());
   }
