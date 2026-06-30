@@ -85,9 +85,33 @@ services:
       - '1025:1025' # SMTP
       - '8025:8025' # Web UI → http://localhost:8025
 
+  # ─── Observability ────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - '3010:3000'
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+
 volumes:
   auth_db_data:
   accounts_db_data:
   transfers_db_data:
   redis_data:
   rabbitmq_data:
+  grafana_data:
