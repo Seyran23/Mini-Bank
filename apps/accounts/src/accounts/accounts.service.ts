@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter } from 'prom-client';
 
 import {
   ForbiddenException,
@@ -18,7 +20,13 @@ import { LedgerEntryResponse } from './responses/ledger-entry.response';
 export class AccountsService {
   private readonly logger = createLogger('accounts');
 
-  constructor(private readonly repo: AccountsRepository) {}
+  constructor(
+    private readonly repo: AccountsRepository,
+    @InjectMetric('accounts_deposits_total')
+    private readonly depositsCounter: Counter<string>,
+    @InjectMetric('accounts_withdrawals_total')
+    private readonly withdrawalsCounter: Counter<string>,
+  ) {}
 
   private async getOwnedAccount(userId: string, accountId: string): Promise<Account> {
     const acc = await this.repo.findAccountById(accountId);
@@ -119,6 +127,7 @@ export class AccountsService {
       const balance = await this.repo.computeBalance(tx, accountId);
 
       this.logger.info({ userId, accountId, amount: amount.toString() }, 'Deposit completed');
+      this.depositsCounter.inc({ currency: lockedAcc.currency });
 
       return AccountResponse.from(lockedAcc, balance.toString());
     });
@@ -159,6 +168,7 @@ export class AccountsService {
       const newBalance = await this.repo.computeBalance(tx, accountId);
 
       this.logger.info({ userId, accountId, amount: amount.toString() }, 'Withdrawal completed');
+      this.withdrawalsCounter.inc({ currency: lockedAcc.currency });
 
       return AccountResponse.from(lockedAcc, newBalance.toString());
     });
