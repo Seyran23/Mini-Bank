@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter, Gauge, Histogram } from 'prom-client';
 
 import { createLogger } from '@minibank/logger';
 import { TransferCompletedEvent, TransferFailedEvent } from '@minibank/types';
@@ -18,11 +20,31 @@ export class TransferSagaRunner {
   constructor(
     private readonly repo: TransfersRepository,
     private readonly accountsClient: AccountsClient,
+    @InjectMetric('transfers_total')
+    private readonly transfersCounter: Counter<string>,
+    @InjectMetric('transfers_amount')
+    private readonly transfersAmountHistogram: Histogram<string>,
+    @InjectMetric('transfers_in_flight')
+    private readonly inFlightGauge: Gauge<string>,
   ) {}
 
   @Interval(Number(transfersConfig.SAGA_POLL_INTERVAL_MS))
   async tick(): Promise<void> {
     const allNonTerminatedTransfers = await this.repo.findNonTerminalTransfers();
+
+    const countByState = new Map<string, number>();
+    for (const transfer of allNonTerminatedTransfers) {
+      countByState.set(transfer.sagaState, (countByState.get(transfer.sagaState) ?? 0) + 1);
+    }
+    for (const state of [
+      SagaState.INITIATED,
+      SagaState.DEBIT_PENDING,
+      SagaState.DEBIT_COMPLETE,
+      SagaState.CREDIT_PENDING,
+      SagaState.COMPENSATING,
+    ]) {
+      this.inFlightGauge.set({ state }, countByState.get(state) ?? 0);
+    }
 
     for (const transfer of allNonTerminatedTransfers) {
       try {
@@ -73,6 +95,7 @@ export class TransferSagaRunner {
             this.buildTransferFailedEvent(transfer, this.errorMessage(e)),
             this.errorMessage(e),
           );
+          this.transfersCounter.inc({ result: 'failure' });
         }
         break;
       case SagaState.DEBIT_COMPLETE:
@@ -101,6 +124,11 @@ export class TransferSagaRunner {
             transfer.id,
             SagaState.COMPLETED,
             this.buildCompletedEvent(transfer),
+          );
+          this.transfersCounter.inc({ result: 'success' });
+          this.transfersAmountHistogram.observe(
+            { currency: transfer.currency },
+            transfer.amount.toNumber(),
           );
           this.logger.info(
             { transferId: transfer.id, correlationId, from: 'CREDIT_PENDING', to: 'COMPLETED' },
@@ -133,6 +161,7 @@ export class TransferSagaRunner {
             SagaState.COMPENSATED,
             this.buildTransferFailedEvent(transfer, 'Credit failed; debit was reversed'),
           );
+          this.transfersCounter.inc({ result: 'failure' });
           this.logger.info(
             { transferId: transfer.id, correlationId, from: 'COMPENSATING', to: 'COMPENSATED' },
             'Saga advanced',
