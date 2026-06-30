@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: gateway
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+    metrics_path: /metrics
+
+  - job_name: auth
+    static_configs:
+      - targets: ['host.docker.internal:3001']
+    metrics_path: /metrics
+
+  - job_name: accounts
+    static_configs:
+      - targets: ['host.docker.internal:3002']
+    metrics_path: /metrics
+
+  - job_name: transfers
+    static_configs:
+      - targets: ['host.docker.internal:3003']
+    metrics_path: /metrics
+
+  - job_name: notifications
+    static_configs:
+      - targets: ['host.docker.internal:3004']
+    metrics_path: /metrics
