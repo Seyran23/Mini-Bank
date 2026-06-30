@@ -1,0 +1,104 @@
+groups:
+  - name: minibank.auth
+    rules:
+      - alert: HighLoginFailureRate
+        expr: |
+          rate(auth_logins_total{result="failure"}[5m])
+          / (rate(auth_logins_total[5m]) + 0.001)
+          > 0.3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Login failure rate above 30% for 2 minutes'
+          description: '{{ $value | humanizePercentage }} of login attempts are failing.'
+
+  - name: minibank.transfers
+    rules:
+      - alert: HighTransferFailureRate
+        expr: |
+          rate(transfers_total{result="failure"}[5m])
+          / (rate(transfers_total[5m]) + 0.001)
+          > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Transfer failure rate above 10% for 2 minutes'
+          description: '{{ $value | humanizePercentage }} of transfers are failing.'
+
+      - alert: SagaStuck
+        expr: |
+          transfers_in_flight{state=~"INITIATED|DEBIT_PENDING|DEBIT_COMPLETE|CREDIT_PENDING|COMPENSATING"} > 0
+          and on(state)
+          (time() - transfers_in_flight{state=~"INITIATED|DEBIT_PENDING|DEBIT_COMPLETE|CREDIT_PENDING|COMPENSATING"} offset 10m)
+          == transfers_in_flight{state=~"INITIATED|DEBIT_PENDING|DEBIT_COMPLETE|CREDIT_PENDING|COMPENSATING"}
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Saga transfers appear stuck in {{ $labels.state }}'
+          description: '{{ $value }} transfer(s) have been in {{ $labels.state }} for over 10 minutes without changing.'
+
+      - alert: SagaCompensatingSpike
+        expr: transfers_in_flight{state="COMPENSATING"} > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'High number of transfers in COMPENSATING state'
+          description: '{{ $value }} transfers are actively being compensated — credit step is likely failing.'
+
+  - name: minibank.notifications
+    rules:
+      - alert: NotificationDeadLetterSpike
+        expr: rate(notifications_events_dead_lettered_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Notification events being dead-lettered at elevated rate'
+          description: 'More than 3 events/minute are permanently failing in the notification consumer.'
+
+  - name: minibank.database
+    rules:
+      - alert: SlowQuerySpike
+        expr: rate(db_slow_queries_total[5m]) > 1
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Slow DB queries (>100ms) spiking on {{ $labels.job }}'
+          description: '{{ $value | humanize }} slow queries per second on {{ $labels.job }}.'
+
+      - alert: HighDbErrorRate
+        expr: rate(db_failed_queries_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'DB query errors spiking on {{ $labels.job }}'
+          description: '{{ $value | humanize }} failed queries per second on {{ $labels.job }}.'
+
+  - name: minibank.http
+    rules:
+      - alert: ServiceHighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m])
+          / (rate(http_requests_total[5m]) + 0.001)
+          > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'HTTP 5xx error rate above 5% on {{ $labels.job }}'
+          description: '{{ $value | humanizePercentage }} of requests to {{ $labels.job }} are returning 5xx.'
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.job }} is down'
+          description: 'Prometheus cannot scrape {{ $labels.job }} — the service may be crashed.'
